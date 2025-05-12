@@ -14,8 +14,12 @@ target_line="df = pd.read_csv('vinos.csv')"
 load_dotenv()
 db_url = os.getenv('POSTGRES_URL').strip("'\"")
 conn = psycopg2.connect(db_url)
-df = pd.read_sql("SELECT * FROM vinos", conn)
 
+# Asegurarnos que no usamos 'id' para entrenar
+df = pd.read_sql("SELECT * FROM vinos", conn)
+df = df.drop(columns=['id']) if 'id' in df.columns else df
+
+# Remover columna quality y convertir etiquetas
 df['quality'] = df['quality'].replace(['Excepcional','Excelente', 'Muy Bueno', 'Bueno', 'Regular', 'Vino defectuoso'], [5, 4, 3, 2, 1, 0])
 df.value_counts('quality')
 
