@@ -4,6 +4,7 @@ import pickle
 from PIL import Image
 import os
 import psycopg2
+from dotenv import load_dotenv
 
 # Configuración de la página
 st.set_page_config(
@@ -15,7 +16,23 @@ st.set_page_config(
 # Función para conectar a base de datos
 def init_connection():
     try:
+        # Intentar usar los secretos de Streamlit primero
         return psycopg2.connect(st.secrets["postgres"]["url"])
+    except KeyError:
+        # Si no hay secretos en Streamlit, intentar usar variables de entorno
+        try:
+            load_dotenv()
+            postgres_url = os.getenv('POSTGRES_URL')
+            if postgres_url:
+                # Eliminar comillas simples o dobles si existen en la URL
+                postgres_url = postgres_url.strip("'\"")
+                return psycopg2.connect(postgres_url)
+            else:
+                st.error("No se encontró URL de base de datos en las variables de entorno")
+                return None
+        except Exception as e:
+            st.error(f"Error al cargar desde variables de entorno: {e}")
+            return None
     except Exception as e:
         st.error(f"Error al conectar a la base de datos: {e}")
         return None
