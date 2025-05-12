@@ -17,8 +17,8 @@ st.write("Sube un archivo CSV con las características del vino para predecir su
 
 # Configuración de la barra lateral
 try:
-    logo = Image.open(os.path.join("Images", "logo_usb.png"))
-    st.sidebar.image(logo)
+    logo = Image.open(os.path.join("Images", "vino.png"))
+    st.sidebar.image(logo, width=180)
 except Exception:
     st.sidebar.warning("No se pudo cargar el logo")
 
