@@ -83,7 +83,7 @@ except Exception:
 
 st.sidebar.header("Opciones:")
 st.sidebar.write("Seleciona una de las siguientes opciones para predecir la calidad de los vinos:")
-st.sidebar.markdown("---")
+st.sidebar.markdown("---")  
 
 # Selector de modelo
 model_option = st.sidebar.selectbox(
@@ -172,11 +172,9 @@ with st.spinner("Inicializando aplicación..."):
         st.dataframe(input_df[display_cols].style.highlight_max(axis=0), hide_index=True)
         st.subheader("Distribución de la Calidad Predicha")
         st.write(input_df['Calidad_Predicha'].value_counts())
-        
-        # Añadir botón para refrescar datos
+          # Añadir botón para refrescar datos
         if st.button("Actualizar datos de muestra", help="Carga nuevos datos de muestra desde la base de datos"):
             st.cache_data.clear()
-            st.experimental_rerun()
+            st.rerun()
 
-st.sidebar.markdown("---")  
-st.sidebar.info("Desarrollado por MSJC")
+
