@@ -3,6 +3,7 @@ import pandas as pd
 import pickle
 from PIL import Image
 import os
+import psycopg2
 
 # Configuración de la página
 st.set_page_config(
@@ -11,19 +12,60 @@ st.set_page_config(
     layout="wide"
 )
 
+# Función para conectar a base de datos
+def init_connection():
+    try:
+        return psycopg2.connect(st.secrets["postgres"]["url"])
+    except Exception as e:
+        st.error(f"Error al conectar a la base de datos: {e}")
+        return None
+
+def run_query(query):
+    conn = init_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            columns = [desc[0] for desc in cursor.description]
+            data = cursor.fetchall()
+            return pd.DataFrame(data, columns=columns)
+        except Exception as e:
+            st.error(f"Error al ejecutar consulta: {e}")
+            return pd.DataFrame()
+        finally:
+            conn.close()
+    return pd.DataFrame()
+
 # Título y descripción
 st.title("Predicción de Calidad de Vinos")
-st.write("Sube un archivo CSV con las características del vino para predecir su calidad.")
+st.write("Esta aplicación carga automáticamente datos de muestra desde la base de datos y predice su calidad. También puedes subir tu propio archivo CSV con características de vinos para obtener predicciones personalizadas.")
 
 # Configuración de la barra lateral
 try:
-    logo = Image.open(os.path.join("Images", "vino.png"))
-    st.sidebar.image(logo, width=180)
+    # Intentar diferentes rutas para adaptarse tanto al entorno local como al de Streamlit Cloud
+    possible_paths = [
+        os.path.join("Images", "vino.png"),
+        os.path.join(os.path.dirname(__file__), "Images", "vino.png"),
+        "Images/vino.png"
+    ]
+    
+    logo = None
+    for path in possible_paths:
+        try:
+            logo = Image.open(path)
+            break
+        except Exception:
+            continue
+    
+    if logo:
+        st.sidebar.image(logo, width=180)
+    else:
+        st.sidebar.warning("No se pudo cargar el logo")
 except Exception:
     st.sidebar.warning("No se pudo cargar el logo")
 
-st.sidebar.header("Cargue un archivo CSV con las variables")
-st.sidebar.write("El archivo debe contener las columnas requeridas para el modelo.")
+st.sidebar.header("Opciones del usuario")
+st.sidebar.write("La aplicación carga automáticamente datos de muestra, pero también puedes cargar tu propio archivo CSV.")
 
 # Selector de modelo
 model_option = st.sidebar.selectbox(
@@ -48,8 +90,81 @@ quality_map = {
     0: "Vino defectuoso"
 }
 
+# Función para cargar y procesar datos desde la base de datos
+@st.cache_data(ttl=600)  # Caché por 10 minutos
+def cargar_datos_bd(limit=1600):
+    with st.spinner("Cargando datos de muestra desde la base de datos..."):
+        # Cargar datos de ejemplo desde la base de datos
+        df = run_query(f"SELECT * FROM vinos LIMIT {limit}")
+        if df.empty:
+            st.warning("No se pudieron cargar datos de muestra desde la base de datos.")
+            return None
+        
+        # Crear una copia para no modificar el original
+        df_procesado = df.copy()
+        
+        # Guardar columnas especiales antes de procesar
+        datos_originales = {}
+        if 'id' in df_procesado.columns:
+            datos_originales['id'] = df_procesado['id'].copy()
+            df_procesado = df_procesado.drop(columns=['id'])
+        
+        if 'quality' in df_procesado.columns:
+            datos_originales['quality'] = df_procesado['quality'].copy()
+            df_procesado = df_procesado.drop(columns=['quality'])
+            
+        return df_procesado, datos_originales
+
+# Cargar automáticamente datos de muestra al inicio
+with st.spinner("Inicializando aplicación..."):
+    db_data = cargar_datos_bd()
+    
+    if db_data:
+        input_df, datos_originales = db_data
+        
+        # Seleccionar solo las columnas necesarias para el modelo
+        model_input_df = input_df[required_columns].copy()
+        
+        # Selección del modelo según la opción elegida
+        if model_option == "Árbol de Decisión":
+            model_filename = 'dt_Classifier_ptap.pkl'
+        else:
+            model_filename = 'xgb_classfier_ptap.pkl'
+        
+        with open(model_filename, 'rb') as model_file:
+            model = pickle.load(model_file)
+        
+        # Hacer predicción usando solo las columnas requeridas
+        input_df['Calidad_Predicha_Num'] = model.predict(model_input_df)
+        input_df['Calidad_Predicha'] = input_df['Calidad_Predicha_Num'].map(quality_map)
+        
+        # Restaurar columnas originales
+        if 'id' in datos_originales:
+            input_df.insert(0, 'id', datos_originales['id'])
+        if 'quality' in datos_originales:
+            input_df['Calidad_Real'] = datos_originales['quality']
+        
+        # Mostrar resultados
+        st.subheader("Resultados de la Predicción (Datos de muestra)")
+        display_cols = (['id'] if 'id' in input_df.columns else []) + required_columns + ['Calidad_Predicha']
+        if 'Calidad_Real' in input_df.columns:
+            display_cols.append('Calidad_Real')
+            
+        # Usar hide_index=True para ocultar la columna de índice sin nombre
+        st.dataframe(input_df[display_cols].style.highlight_max(axis=0), hide_index=True)
+        st.subheader("Distribución de la Calidad Predicha")
+        st.write(input_df['Calidad_Predicha'].value_counts())
+        
+        # Añadir botón para refrescar datos
+        if st.button("Actualizar datos de muestra", help="Carga nuevos datos de muestra desde la base de datos"):
+            st.cache_data.clear()
+            st.experimental_rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.info("Desarrollado por USB")
+
 # Carga y procesamiento del archivo
-uploaded_file = st.sidebar.file_uploader("Cargar archivo", type=["csv"])
+uploaded_file = st.sidebar.file_uploader("Cargar archivo CSV", type=["csv"])
 if uploaded_file is not None:
     try:
         input_df = pd.read_csv(uploaded_file, sep=";")
@@ -96,16 +211,14 @@ if uploaded_file is not None:
             if 'id' in locals():
                 input_df.insert(0, 'id', id_column)
 
-            st.subheader("Resultados de la Predicción")
+            st.subheader("Resultados de la Predicción (Archivo CSV)")
             # Mostrar id si existe
             display_cols = (['id'] if 'id' in input_df.columns else []) + required_columns + ['Calidad_Predicha']
-            st.dataframe(input_df[display_cols].style.highlight_max(axis=0))
+            # Usar hide_index=True para ocultar la columna de índice sin nombre
+            st.dataframe(input_df[display_cols].style.highlight_max(axis=0), hide_index=True)
             st.subheader("Distribución de la Calidad Predicha")
             st.write(input_df['Calidad_Predicha'].value_counts())
         else:
             st.error(f"El archivo CSV debe contener las columnas: {', '.join(required_columns)}")
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")
-
-st.sidebar.markdown("---")
-st.sidebar.info("Desarrollado por USB")
