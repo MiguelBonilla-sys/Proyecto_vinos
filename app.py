@@ -91,7 +91,7 @@ model_option = st.sidebar.selectbox(
     ("Árbol de Decisión", "XGBoost")
 )
 st.sidebar.markdown("---")  
-st.sidebar.info("Desarrollado por MSJC")
+st.sidebar.info("Desarrollado por CMSJ")
 
 # Define las columnas requeridas (ajusta según tu base de datos, menos 'quality')
 required_columns = [
