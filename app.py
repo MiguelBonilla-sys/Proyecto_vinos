@@ -90,6 +90,8 @@ model_option = st.sidebar.selectbox(
     "Seleccione el modelo de predicción",
     ("Árbol de Decisión", "XGBoost")
 )
+st.sidebar.markdown("---")  
+st.sidebar.info("Desarrollado por MSJC")
 
 # Define las columnas requeridas (ajusta según tu base de datos, menos 'quality')
 required_columns = [
