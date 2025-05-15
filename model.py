@@ -35,6 +35,7 @@ mse_dt = accuracy_score(ytest, y_pred)
 print("Mean Squared Error (MSE) for Decision Tree:", mse_dt)
 
 pickle.dump(dt_Classifier, open(r'dt_Classifier_ptap.pkl', 'wb'))
+pickle.dump(mse_dt, open(r'dt_metrics.pkl', 'wb'))
 
 xgb_classfier = XGBClassifier()
 xgb_classfier.fit(xtrain, ytrain)
@@ -43,4 +44,5 @@ mse_xgb = accuracy_score(ytest, y_pred)
 print("Mean Squared Error (MSE) for xgb_classfier:", mse_xgb)
 
 pickle.dump(xgb_classfier, open(r'xgb_classfier_ptap.pkl', 'wb'))
+pickle.dump(mse_xgb, open(r'xgb_metrics.pkl', 'wb'))
 

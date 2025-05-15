@@ -174,9 +174,45 @@ with st.spinner("Inicializando aplicación..."):
         st.dataframe(input_df[display_cols].style.highlight_max(axis=0), hide_index=True)
         st.subheader("Distribución de la Calidad Predicha")
         st.write(input_df['Calidad_Predicha'].value_counts())
-          # Añadir botón para refrescar datos
+
+        # Mostrar métrica de accuracy debajo de la distribución
+        if model_option == "Árbol de Decisión":
+            try:
+                with open('dt_metrics.pkl', 'rb') as f:
+                    mse_dt = pickle.load(f)
+                st.info(f"Precisión del Árbol de Decisión: {mse_dt:.4f}")
+            except Exception:
+                st.warning("No se pudo cargar la métrica del Árbol de Decisión.")
+        else:
+            try:
+                with open('xgb_metrics.pkl', 'rb') as f:
+                    mse_xgb = pickle.load(f)
+                st.info(f"Precisión de XGBoost: {mse_xgb:.4f}")
+            except Exception:
+                st.warning("No se pudo cargar la métrica de XGBoost.")
+
+        # Gráficas de acuerdo al modelo seleccionado y la calidad predicha
+        st.subheader("Gráfica de Calidad Predicha vs pH")
+        import altair as alt
+        if model_option == "Árbol de Decisión":
+            chart = alt.Chart(input_df).mark_bar().encode(
+                x=alt.X('Calidad_Predicha:N', title='Calidad Predicha'),
+                y=alt.Y('ph:Q', aggregate='mean', title='pH Promedio'),
+                color=alt.Color('Calidad_Predicha:N', legend=None)
+            ).properties(title='pH Promedio por Calidad Predicha (Árbol de Decisión)')
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            chart = alt.Chart(input_df).mark_bar().encode(
+                x=alt.X('Calidad_Predicha:N', title='Calidad Predicha'),
+                y=alt.Y('alcohol:Q', aggregate='mean', title='Alcohol Promedio'),
+                color=alt.Color('Calidad_Predicha:N', legend=None)
+            ).properties(title='Alcohol Promedio por Calidad Predicha (XGBoost)')
+            st.altair_chart(chart, use_container_width=True)
+
+        # Añadir botón para refrescar datos
         if st.button("Actualizar datos de muestra", help="Carga nuevos datos de muestra desde la base de datos"):
             st.cache_data.clear()
             st.rerun()
 
+        # Graficas deacuerdo al modelo seleccionado y la calidad predicha
 
